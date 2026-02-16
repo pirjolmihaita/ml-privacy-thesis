@@ -10,6 +10,13 @@ METRICS_PATH = os.path.join(BASE_DIR, 'results', 'metrics', 'results_wide.csv')
 # Root directory for the computational cost analysis output
 BASE_COST_DIR = os.path.join(BASE_DIR, 'results', 'analysis', 'cost_computational')
 
+"""
+computational_cost_analyzer.py: Performance and Overhead Analysis
+This script parses raw metrics to calculate total computational costs across 
+different privacy layers. It specifically computes training, inference, and 
+compilation times, generating overhead ratios relative to baseline performance.
+"""
+
 # Dataset row counts (Total Rows) for context in the final reports
 DATASET_INFO = {
     'adult': 32562, 'creditcard': 284808, 'heart': 919,

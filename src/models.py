@@ -36,6 +36,13 @@ from .utils import get_logger
 
 logger = get_logger(__name__)
 
+"""
+models.py: Unified Model Factory and Inference Engine
+The central library of the project. It abstracts the instantiation of all 
+models (Baseline, DP, Concrete ML, Paillier) and encapsulates the complex 
+logic required for running homomorphic and differentially private inference.
+"""
+
 class ModelManager:
     def __init__(self):
         pass

@@ -3,12 +3,19 @@ from sklearn.metrics import (
     mean_squared_error, mean_absolute_error, r2_score
 )
 
+"""
+concrete.py: Fully Homomorphic Encryption (FHE) Wrapper
+Integrates the Concrete ML library to perform encrypted inference. It supports 
+both standard FHE and a hybrid DP-FHE mode where noise is added to weights 
+before the model is compiled into a cryptographic circuit.
+"""
+
 def run_concrete_fhe_only(mm, m_type, X_train_he, X_test_he, y_train, y_test, task_type, suffix, he_subset_n=10):
     """
-    Concrete FHE-only (apply_dp_weights=False)
-    Returnează:
-      Concrete_Accuracy/F1/Precision/Recall + Concrete_TrainTime/CompileTime/InfTime
-    sau la regression Concrete_MSE/MAE/R2 + times
+    Run Concrete ML in FHE-only mode (apply_dp_weights=False).
+    Returns:
+      - Classification: Accuracy, F1, Precision, Recall + Train/Compile/Inference Times.
+      - Regression: MSE, MAE, R2 + Train/Compile/Inference Times.
     """
     y_true_sub = y_test[:he_subset_n]
 
@@ -25,9 +32,9 @@ def run_concrete_fhe_only(mm, m_type, X_train_he, X_test_he, y_train, y_test, ta
     if task_type == "classification":
         return {
             f"Concrete_Accuracy{suffix}": accuracy_score(y_true_sub, preds_conc),
-            f"Concrete_F1{suffix}": f1_score(y_true_sub, preds_conc, average="weighted", zero_division=0),
-            f"Concrete_Precision{suffix}": precision_score(y_true_sub, preds_conc, average="weighted", zero_division=0),
-            f"Concrete_Recall{suffix}": recall_score(y_true_sub, preds_conc, average="weighted", zero_division=0),
+            f"Concrete_F1{suffix}": f1_score(y_true_sub, preds_conc, average="macro", zero_division=0),
+            f"Concrete_Precision{suffix}": precision_score(y_true_sub, preds_conc, average="macro", zero_division=0),
+            f"Concrete_Recall{suffix}": recall_score(y_true_sub, preds_conc, average="macro", zero_division=0),
             f"Concrete_CompileTime{suffix}": conc_compile_time,
             f"Concrete_InfTime{suffix}": conc_inf_time,
             f"Concrete_TrainTime{suffix}": conc_train_time,
@@ -44,10 +51,10 @@ def run_concrete_fhe_only(mm, m_type, X_train_he, X_test_he, y_train, y_test, ta
 
 def run_concrete_dp_weights(mm, m_type, eps, norm, X_train_he, X_test_he, y_train, y_test, task_type, suffix, he_subset_n=10):
     """
-    ConcreteW: DP-like noise on weights + FHE simulate.
-    Doar pentru lr/lin_reg (exact ca în cod).
-    Returnează:
-      ConcreteW_* + times
+    ConcreteW: Hybrid mode applying DP-like noise to weights followed by FHE execution.
+    Note: Currently supported only for Linear/Logistic Regression models.
+    Returns:
+      - Metrics prefixed with 'ConcreteW_' + execution timings.
     """
     if m_type not in ["lr", "lin_reg"]:
         return {}
@@ -72,9 +79,9 @@ def run_concrete_dp_weights(mm, m_type, eps, norm, X_train_he, X_test_he, y_trai
     if task_type == "classification":
         return {
             f"ConcreteW_Accuracy{suffix}": accuracy_score(y_true_sub, preds_conc_w),
-            f"ConcreteW_F1{suffix}": f1_score(y_true_sub, preds_conc_w, average="weighted", zero_division=0),
-            f"ConcreteW_Precision{suffix}": precision_score(y_true_sub, preds_conc_w, average="weighted", zero_division=0),
-            f"ConcreteW_Recall{suffix}": recall_score(y_true_sub, preds_conc_w, average="weighted", zero_division=0),
+            f"ConcreteW_F1{suffix}": f1_score(y_true_sub, preds_conc_w, average="macro", zero_division=0),
+            f"ConcreteW_Precision{suffix}": precision_score(y_true_sub, preds_conc_w, average="macro", zero_division=0),
+            f"ConcreteW_Recall{suffix}": recall_score(y_true_sub, preds_conc_w, average="macro", zero_division=0),
             f"ConcreteW_CompileTime{suffix}": w_compile_time,
             f"ConcreteW_InfTime{suffix}": w_inf_time,
             f"ConcreteW_TrainTime{suffix}": w_train_time,

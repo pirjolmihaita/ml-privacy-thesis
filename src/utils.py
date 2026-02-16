@@ -1,6 +1,12 @@
 import logging
 import sys
 
+"""
+utils.py: Logging and System Helpers
+Provides a standardized logging configuration to track experimental 
+progress and errors across distributed processes.
+"""
+
 def get_logger(name):
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)

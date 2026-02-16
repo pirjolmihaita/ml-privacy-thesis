@@ -99,9 +99,10 @@ def process_dataset(ds_name):
         X_train_he, X_test_he, full_n_features, he_used = slice_he_features(
             X_train_proc, X_test_proc, he_n_features_limit=he_n_features_limit
         )
+        """
         if full_n_features > he_n_features_limit:
             logger.info(f"[{ds_name}] HE Optimization: Selected top {he_n_features_limit} features from {full_n_features}")
-
+        """
         # --- BASELINE LOOP ---
         for m_key in models:
             if task_type == 'regression':

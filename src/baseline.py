@@ -4,14 +4,15 @@ from sklearn.metrics import (
     mean_squared_error, mean_absolute_error, r2_score
 )
 
+"""
+baseline.py: Standard Baseline Execution Module
+This module handles the training and evaluation of non-private machine learning models.
+It computes benchmarks (F1-score, Accuracy, MSE) that serve as the ground-truth 
+reference for all privacy-preserving methods (Differential Privacy, FHE, PHE).
+"""
+
 def run_baseline(mm, m_type, X_train_proc, X_test_proc, y_train, y_test, task_type):
-    """
-    Returnează dict cu:
-      - Baseline_Accuracy/F1/Precision/Recall + Baseline_TrainTime/Baseline_InfTime
-      SAU
-      - Baseline_MSE/MAE/R2 + Baseline_TrainTime/Baseline_InfTime
-    Exact ca în codul tău.
-    """
+
     clf = mm.get_baseline_model(m_type)
 
     t0 = time.time()
@@ -25,9 +26,9 @@ def run_baseline(mm, m_type, X_train_proc, X_test_proc, y_train, y_test, task_ty
     if task_type == "classification":
         return {
             "Baseline_Accuracy": accuracy_score(y_test, preds),
-            "Baseline_F1": f1_score(y_test, preds, average="weighted", zero_division=0),
-            "Baseline_Precision": precision_score(y_test, preds, average="weighted", zero_division=0),
-            "Baseline_Recall": recall_score(y_test, preds, average="weighted", zero_division=0),
+            "Baseline_F1": f1_score(y_test, preds, average="macro", zero_division=0),
+            "Baseline_Precision": precision_score(y_test, preds, average="macro", zero_division=0),
+            "Baseline_Recall": recall_score(y_test, preds, average="macro", zero_division=0),
             "Baseline_TrainTime": train_time,
             "Baseline_InfTime": inf_time,
         }

@@ -2,7 +2,14 @@ import pandas as pd
 import os
 import re
 
-# Configurații căi
+"""
+privacy_utility_analizer.py: Utility Trade-off Analysis
+Aggregates experimental metrics to identify the optimal balance between 
+privacy levels (Epsilon/K) and model utility. It extracts the best performance 
+scores for each method to facilitate comparative research analysis.
+"""
+
+# Paths configurations
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 METRICS_PATH = os.path.join(BASE_DIR, 'results', 'metrics', 'results_wide.csv')
 BASE_TRADE_DIR = os.path.join(BASE_DIR, 'results', 'analysis', 'privacy_tradeoff')
@@ -15,7 +22,7 @@ def load_utility_data():
     df = pd.read_csv(METRICS_PATH)
     id_vars = ['Dataset', 'Model', 'Task_Type']
     
-    # Regex pentru a prinde Metrica, Epsilon și Norm (Utility)
+    # Regex patterns to capture Metric, Epsilon, and Norm (Utility)
     patterns = {
         'Baseline': re.compile(r"^Baseline_(F1|R2)$"),
         'DP': re.compile(r"^DP_(F1|R2)_Eps([0-9.]+)_Norm([0-9.]+)$"),
@@ -54,26 +61,26 @@ def load_utility_data():
 def process_tradeoff(df):
     if df is None or df.empty: return
 
-    # Pentru fiecare Dataset, Model și Metodă, găsim rândul cu cel mai bun scor
-    # Clasificare -> F1 maxim, Regresie -> R2 maxim
+    # For each Dataset, Model, and Method, find the row with the best score
+    # Classification -> maximum F1, Regression -> maximum R2
     idx = df.groupby(['Dataset', 'Model', 'Method'])['Score'].idxmax()
     best_results = df.loc[idx]
 
     for (ds, task), ds_df in best_results.groupby(['Dataset', 'Task_Type']):
-        # Creăm folderul: analysis/privacy_tradeoff/classification/adult/
+        # Create the folder: analysis/privacy_tradeoff/classification/adult/
         folder_path = os.path.join(BASE_TRADE_DIR, task, ds)
         os.makedirs(folder_path, exist_ok=True)
 
-        # Sortăm după Score descrescător ca să vedem cea mai bună metodă sus
+        # Sort the DataFrame by Score in descending order to see the best method at the top
         ds_df = ds_df.sort_values(by='Score', ascending=False)
 
-        # Redenumim coloana Score în funcție de task pentru claritate
+        # Rename the Score column based on the task for clarity
         metric_label = 'Best_F1_Score' if task == 'classification' else 'Best_R2_Score'
         ds_df = ds_df.rename(columns={'Score': metric_label})
 
         output_file = os.path.join(folder_path, 'tabel_utility.csv')
         
-        # Selectăm coloanele finale
+        # Select the final columns
         final_cols = ['Method', 'Model', metric_label, 'Epsilon', 'Data_Norm']
         ds_df[final_cols].to_csv(output_file, index=False)
         print(f"Saved: {task}/{ds}/tabel_utility.csv")

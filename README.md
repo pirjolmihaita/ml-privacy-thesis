@@ -1,58 +1,54 @@
-# Data Confidentiality Master Thesis
+# Confidentiality-of-Data: Comparative Analysis of PPML Techniques
 
-This project investigates and compares advanced Privacy-Preserving Machine Learning (PPML) techniques, focusing specifically on the trade-offs between **Differential Privacy (DP)** and **Fully Homomorphic Encryption (FHE)**.
+This project provides a comprehensive framework for evaluating Privacy-Preserving Machine Learning (PPML) techniques. It compares traditional machine learning models (Baseline) against three major privacy paradigms, measuring the trade-off between data utility and computational overhead.
 
-## Project Overview
+## Overview of Privacy Techniques
 
-The primary goal of this research is to analyze the relationship between utility (Accuracy/MSE) and performance (Execution Time) using tabular datasets such as the Adult and Communities datasets.
+The system evaluates four distinct execution modes:
 
-### Technologies Implemented
+1. **Baseline**: Standard machine learning models trained and tested on cleartext data. This serves as the performance and accuracy benchmark.
+2. **Differential Privacy (DP)**: Implemented via the `diffprivlib` library. It adds mathematical noise to the model or data to provide formal privacy guarantees (Epsilon-level privacy).
+3. **Partially Homomorphic Encryption (PHE)**: Implemented using the Paillier cryptosystem. It allows linear models to perform encrypted inference, where the data remains encrypted while the model weights are in cleartext.
+4. **Fully Homomorphic Encryption (FHE)**: Implemented via **Concrete ML**. This converts machine learning models into cryptographic boolean circuits, allowing for total data confidentiality during execution.
 
-* **Differential Privacy:** Utilizes **IBM Diffprivlib** and **Opacus** to protect training data.
-* **Homomorphic Encryption:** Utilizes **Zama Concrete ML** to protect data during the inference phase.
+## Research Comparison
+The project compares these techniques across multiple datasets (Adult, CreditCard, Heart, Insurance, Communities, etc.) using the following metrics:
 
-## System Requirements
+* **Utility**: F1-Score for classification tasks and R2-Score for regression tasks.
+* **Execution Time**: Training time, inference time, and FHE compilation time.
+* **Computational Overhead**: The relative slowdown factor of privacy-preserving methods compared to the Baseline.
 
-> **Important Note:** Due to dependencies on specific Linux libraries required by `concrete-ml`, this project **does not** run natively on Windows.
+## Environment Setup (WSL)
 
-To run this project, you must use one of the following environments:
+The project is designed to run in a Linux environment via the Windows Subsystem for Linux (WSL).
 
-* **Operating System:** Linux (Ubuntu 20.04 or higher) or **WSL2** (Windows Subsystem for Linux).
-* **Python Version:** Python **3.10** or **3.11**.
-  * *Note: While tested on Python 3.12, strict compatibility with `numpy < 2.0` is required.*
-
-## Installation and Usage
-
-Follow the steps below to set up the environment and run the experiments.
-
-### 1. Clone the Repository
+### 1. Virtual Environment Configuration
+To ensure all dependencies are isolated, create and activate a virtual environment:
 
 ```bash
-git clone [https://github.com/pirjolmihaita/data-confidentiality-thesis.git](https://github.com/pirjolmihaita/data-confidentiality-thesis.git)
-cd data-confidentiality-thesis
-
-2. Create a Virtual Environment
-It is highly recommended to use a virtual environment within your Linux or WSL terminal.
-
-Bash
-
+# Create the virtual environment
 python3 -m venv venv_wsl
+
+# Activate the environment
 source venv_wsl/bin/activate
-3. Install Dependencies
-Install the required Python packages listed in the requirements file.
 
-Bash
-
+# Install required libraries
 pip install -r requirements.txt
-4. Run Experiments
-Execute the main script to start the analysis and generate results.
 
-Bash
+#. Execution
+To run the full pipeline, including data loading, preprocessing, privacy experiments, and automated report generation, ensure your virtual environment is active and execute the main entry point:
+# Ensure you are in the project root and venv is active
+source venv_wsl/bin/activate
 
-python3 main.py
-Project Structure
-src/: Contains the source code for the machine learning models and experimental logic.
+# Run the complete experiment suite
+python main.py
 
-results/: Destination folder for the generated CSV files containing performance metrics.
+##Results and Output Location
 
-main.py: The entry point for the application.
+The automated analyzers generate research-ready tables in the following folders:
+
+Utility Analysis:
+Located in results/analysis/privacy_tradeoff/. This folder contains tabel_utility.csv files for each dataset, highlighting the best F1 or R2 scores achieved across different privacy settings.
+
+Computational Cost Analysis:
+Located in results/analysis/computational_costs/. This folder contains tabel_cost.csv files for each dataset, providing a detailed breakdown of training times, inference times, and the calculated Overhead Factor compared to the Baseline.

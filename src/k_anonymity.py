@@ -5,7 +5,12 @@ from sklearn.metrics import (
     accuracy_score, f1_score, precision_score, recall_score,
     mean_squared_error, mean_absolute_error, r2_score
 )
-
+"""
+k_anonymity.py: K-Anonymity (Mondrian) Module
+Applies the Mondrian algorithm for data anonymization. It transforms raw 
+datasets into k-anonymous representations and evaluates the remaining machine 
+learning utility of the generalized data.
+"""
 from .privacy.k_anonymity import MondrianAnonymizer
 
 def run_k_anonymity_block(mm, preprocessor, X_train, X_test, y_train, y_test, task_type, models, ks, wide_results, ds_name):
@@ -72,9 +77,9 @@ def run_k_anonymity_block(mm, preprocessor, X_train, X_test, y_train, y_test, ta
             if task_type == "classification":
                 wide_results[row_key].update({
                     f"KAnon_Accuracy_K{k}": accuracy_score(y_test, preds),
-                    f"KAnon_F1_K{k}": f1_score(y_test, preds, average="weighted", zero_division=0),
-                    f"KAnon_Precision_K{k}": precision_score(y_test, preds, average="weighted", zero_division=0),
-                    f"KAnon_Recall_K{k}": recall_score(y_test, preds, average="weighted", zero_division=0),
+                    f"KAnon_F1_K{k}": f1_score(y_test, preds, average="macro", zero_division=0),
+                    f"KAnon_Precision_K{k}": precision_score(y_test, preds, average="macro", zero_division=0),
+                    f"KAnon_Recall_K{k}": recall_score(y_test, preds, average="macro", zero_division=0),
                     f"KAnon_InfTime_K{k}": inf_time,
                     f"KAnon_TrainTime_K{k}": train_time,
                     f"KAnon_ProcessTime_K{k}": anon_duration,

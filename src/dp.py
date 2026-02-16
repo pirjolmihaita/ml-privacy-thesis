@@ -3,7 +3,12 @@ from sklearn.metrics import (
     accuracy_score, f1_score, precision_score, recall_score,
     mean_squared_error, mean_absolute_error, r2_score
 )
-
+"""
+dp.py: Differential Privacy (DP) Execution Module
+Handles the training of Differentially Private models using objective perturbation 
+and noise injection. It evaluates the impact of different Epsilon values on 
+model utility across various dataset sizes.
+"""
 def run_dp(mm, m_type, eps, norm, n_features, classes, bounds,
            X_train_proc, X_test_proc, y_train, y_test, task_type, suffix):
     """
@@ -29,9 +34,9 @@ def run_dp(mm, m_type, eps, norm, n_features, classes, bounds,
     if task_type == "classification":
         return clf_dp, {
             f"DP_Accuracy{suffix}": accuracy_score(y_test, preds_dp),
-            f"DP_F1{suffix}": f1_score(y_test, preds_dp, average="weighted", zero_division=0),
-            f"DP_Precision{suffix}": precision_score(y_test, preds_dp, average="weighted", zero_division=0),
-            f"DP_Recall{suffix}": recall_score(y_test, preds_dp, average="weighted", zero_division=0),
+            f"DP_F1{suffix}": f1_score(y_test, preds_dp, average="macro", zero_division=0),
+            f"DP_Precision{suffix}": precision_score(y_test, preds_dp, average="macro", zero_division=0),
+            f"DP_Recall{suffix}": recall_score(y_test, preds_dp, average="macro", zero_division=0),
             f"DP_TrainTime{suffix}": train_time,
             f"DP_InfTime{suffix}": inf_time,
         }

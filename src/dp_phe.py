@@ -4,18 +4,15 @@ from sklearn.metrics import (
     mean_squared_error, mean_absolute_error, r2_score
 )
 
+"""
+dp_phe.py: Partial Homomorphic Encryption (PHE) Module
+Implements encrypted inference using the Paillier cryptosystem. It focuses on 
+linear models (Logistic/Linear Regression) where weights are kept in clear 
+while the input data and dot-product calculations remain encrypted.
+"""
+
 def run_dp_phe(mm, m_type, eps, norm, X_train_he, X_test_he, y_train, y_test, task_type, suffix, he_subset_n=10):
-    """
-    Exact ca în codul tău:
-      - retrain DP model pe 10 features (X_train_he)
-      - run_he_inference pe X_test_he (subset n=10)
-      - calculezi metrici pe y_test[:10]
-    Returnează dict cu:
-      PHE_Accuracy{suffix}, PHE_F1{suffix}, PHE_Precision{suffix}, PHE_Recall{suffix},
-      PHE_TrainTime{suffix}, PHE_InfTime{suffix}
-    Sau regression:
-      PHE_MSE{suffix}, PHE_MAE{suffix}, PHE_R2{suffix}, PHE_TrainTime{suffix}, PHE_InfTime{suffix}
-    """
+
     # doar pentru LR/LinReg, exact ca în codul tău
     if m_type not in ["lr", "lin_reg"]:
         return {}

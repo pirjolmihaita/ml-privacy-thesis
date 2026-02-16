@@ -8,6 +8,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from .utils import get_logger
 
+"""
+data_loader.py: Data Ingestion and Preprocessing Pipeline
+Manages the lifecycle of datasets (Adult, CreditCard, Insurance, etc.). 
+It handles automated cleaning, feature scaling, categorical encoding, 
+and stratified splitting for both classification and regression tasks.
+"""
+
 logger = get_logger(__name__)
 
 class DataLoader:
@@ -94,6 +101,7 @@ class DataLoader:
     def _load_cervical(self):
         df = pd.read_csv(f'{self.data_dir}/classification/kag_risk_factors_cervical_cancer.csv')
         df = df.replace('?', np.nan)
+        df = df.dropna(thresh=len(df)*0.5, axis=1)
         # Convert all columns to numeric if possible, as most are numeric disguised as object
         for col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='ignore')
@@ -135,17 +143,13 @@ class DataLoader:
         # We will drop the first 5 non-predictive columns: 
         # state, county, community, communityname, fold
         
-        cols = [f'col_{i}' for i in range(128)] # Generic if names file parsing is hard, but we can do better
-        # Actually checking the file structure previously: it has missing values as '?'
-        
         df = pd.read_csv(f'{self.data_dir}/regression/communities.data', header=None, na_values=['?'])
-        
+        df = df.dropna(thresh=len(df)*0.5, axis=1)
         # Based on .names file, the goal is the last column (127 index)
         # Drop first 5
-        df = df.drop(columns=[0, 1, 2, 3, 4])
+        df = df.drop(columns=[0, 1, 2, 3, 4], errors='ignore')
         
         # Name the target. We'll leave features as integers for simplicity unless crucial
-        target_index = 127
         df = df.rename(columns={127: 'ViolentCrimesPerPop'})
         
         return df, 'ViolentCrimesPerPop'
