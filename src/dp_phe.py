@@ -11,7 +11,7 @@ linear models (Logistic/Linear Regression) where weights are kept in clear
 while the input data and dot-product calculations remain encrypted.
 """
 
-def run_dp_phe(mm, m_type, eps, norm, X_train_he, X_test_he, y_train, y_test, task_type, suffix, he_subset_n=10):
+def run_dp_phe(mm, m_type, eps, norm, X_train_he, X_test_he, y_train, y_test, task_type, suffix, he_subset_n=None):
 
     # doar pentru LR/LinReg, exact ca în codul tău
     if m_type not in ["lr", "lin_reg"]:

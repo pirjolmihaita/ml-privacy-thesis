@@ -35,6 +35,17 @@ source venv_wsl/bin/activate
 # Install required libraries
 pip install -r requirements.txt
 
+# Git LFS Configuration (Crucial for Datasets)
+This project uses Git Large File Storage (LFS) to manage large datasets (e.g., creditcard.csv, adult.csv). If you have just cloned the repository, the files in data/raw/ are currently just small pointer files.
+
+Run the following commands to download the actual data:
+
+# Ensure git-lfs is initialized on your system
+git lfs install
+
+# Download the actual content of the datasets
+git lfs pull
+
 #. Execution
 To run the full pipeline, including data loading, preprocessing, privacy experiments, and automated report generation, ensure your virtual environment is active and execute the main entry point:
 # Ensure you are in the project root and venv is active

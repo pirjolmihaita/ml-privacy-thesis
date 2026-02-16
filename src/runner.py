@@ -95,7 +95,7 @@ def process_dataset(ds_name):
         n_features = X_train_proc.shape[1]
 
         # HE/FHE feature subset (top 10 columns)
-        he_n_features_limit = 10
+        he_n_features_limit = n_features
         X_train_he, X_test_he, full_n_features, he_used = slice_he_features(
             X_train_proc, X_test_proc, he_n_features_limit=he_n_features_limit
         )
