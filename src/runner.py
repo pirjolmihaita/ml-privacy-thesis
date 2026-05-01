@@ -186,7 +186,7 @@ def process_dataset(ds_name):
                                 mm=mm, m_type=m_type, eps=eps, norm=norm,
                                 X_train_he=X_train_he, X_test_he=X_test_he,
                                 y_train=y_train, y_test=y_test,
-                                task_type=task_type, suffix=suffix, he_subset_n=10,
+                                task_type=task_type, suffix=suffix, he_subset_n=None,
                                 bounds_y=dp_bounds_y
                             )
                             wide_results[row_key].update(phe_metrics)
@@ -205,7 +205,7 @@ def process_dataset(ds_name):
                                 mm=mm, m_type=m_type,
                                 X_train_he=X_train_he, X_test_he=X_test_he,
                                 y_train=y_train, y_test=y_test,
-                                task_type=task_type, suffix=suffix, he_subset_n=10
+                                task_type=task_type, suffix=suffix, he_subset_n=None
                             )
                             wide_results[row_key].update(conc_metrics)
                         except ImportError:
@@ -224,7 +224,7 @@ def process_dataset(ds_name):
                                 mm=mm, m_type=m_type, eps=eps, norm=norm,
                                 X_train_he=X_train_he, X_test_he=X_test_he,
                                 y_train=y_train, y_test=y_test,
-                                task_type=task_type, suffix=suffix, he_subset_n=10
+                                task_type=task_type, suffix=suffix, he_subset_n=None
                             )
                             wide_results[row_key].update(concw_metrics)
                         except ImportError:

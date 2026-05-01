@@ -77,9 +77,9 @@ class ModelManager:
         elif model_type == 'lin_reg':
             return DPLinearReg(epsilon=epsilon, bounds_X=bounds, bounds_y=bounds_y)
         elif model_type == 'nb':
-            # Bounds fixate la [-3, 3] — dupa StandardScaler features sunt in acest range.
-            # Folosirea data_norm (ex. 100) ca bounds supraestimeaza sensitivitatea
-            # si produce zgomot excesiv care face modelul mai vulnerabil la MIA.
+            # Fixed bounds at [-3, 3] — after StandardScaler features are in this range.
+            # Using data_norm (e.g. 100) as bounds overestimates sensitivity
+            # and produces excessive noise that makes the model more vulnerable to MIA.
             nb_bounds = (-3.0, 3.0)
             return DPGNB(epsilon=epsilon, bounds=nb_bounds)
         elif model_type == 'dt':

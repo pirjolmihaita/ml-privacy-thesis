@@ -23,7 +23,7 @@ def run_mi_attack(clf, X_train, y_train, X_test, y_test):
     n_classes  = len(np.unique(y_train))
     n_features = X_train.shape[1]
 
-    # Split pentru atrenare si evaluare atac (evita evaluare in-sample)
+    # Split for attack training and evaluation (avoids in-sample evaluation)
     X_tr_attack, X_tr_eval, y_tr_attack, y_tr_eval = train_test_split(
         X_train, y_train, test_size=0.5, random_state=42)
     X_te_attack, X_te_eval, y_te_attack, y_te_eval = train_test_split(
