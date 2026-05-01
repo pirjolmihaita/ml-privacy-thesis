@@ -88,12 +88,16 @@ class DataLoader:
 
     def _load_adult(self):
         df = pd.read_csv(f'{self.data_dir}/classification/adult.csv')
+        df = df.replace('?', np.nan)
+        df = df.drop(columns=['education', 'fnlwgt'])
+        df = df.drop_duplicates() 
         # Map income to 0/1
         df['income'] = df['income'].apply(lambda x: 1 if '>50K' in x else 0)
         return df, 'income'
 
     def _load_breast_cancer(self):
         df = pd.read_csv(f'{self.data_dir}/classification/data.csv')
+        df = df.drop_duplicates()
         df = df.drop(columns=['id', 'Unnamed: 32'], errors='ignore')
         df['diagnosis'] = df['diagnosis'].map({'M': 1, 'B': 0})
         return df, 'diagnosis'
@@ -135,6 +139,8 @@ class DataLoader:
 
     def _load_insurance(self):
         df = pd.read_csv(f'{self.data_dir}/regression/insurance.csv')
+        df = df.drop_duplicates()
+        df['charges'] = np.log1p(df['charges'])
         return df, 'charges'
 
     def _load_communities(self):
@@ -150,7 +156,7 @@ class DataLoader:
         df = df.drop(columns=[0, 1, 2, 3, 4], errors='ignore')
         
         # Name the target. We'll leave features as integers for simplicity unless crucial
-        df = df.rename(columns={127: 'ViolentCrimesPerPop'})
+        df = df.rename(columns={df.columns[-1]: 'ViolentCrimesPerPop'})
         
         return df, 'ViolentCrimesPerPop'
 

@@ -24,11 +24,11 @@ def load_utility_data():
     
     # Regex patterns to capture Metric, Epsilon, and Norm (Utility)
     patterns = {
-        'Baseline': re.compile(r"^Baseline_(F1|R2)$"),
-        'DP': re.compile(r"^DP_(F1|R2)_Eps([0-9.]+)_Norm([0-9.]+)$"),
-        'DP-PHE': re.compile(r"^PHE_(F1|R2)_Eps([0-9.]+)_Norm([0-9.]+)$"),
-        'DP-FHE': re.compile(r"^Concrete_(F1|R2)_Eps([0-9.]+)_Norm([0-9.]+)$"),
-        'DP-FHE-W': re.compile(r"^ConcreteW_(F1|R2)_Eps([0-9.]+)_Norm([0-9.]+)$")
+        'Baseline': re.compile(r"^Baseline_(F1|R2|AUC)$"),
+        'DP': re.compile(r"^DP_(F1|R2|AUC)_Eps([0-9.]+)_Norm([0-9.]+)$"),
+        'DP-PHE': re.compile(r"^DP_PHE_(F1|R2|AUC)_Eps([0-9.]+)_Norm([0-9.]+)$"),
+        'DP-FHE': re.compile(r"^FHE_(F1|R2|AUC)_Eps([0-9.]+)_Norm([0-9.]+)$"),
+        'DP-FHE-W': re.compile(r"^FHE_DP_(F1|R2|AUC)_Eps([0-9.]+)_Norm([0-9.]+)$")
     }
 
     rows = []
@@ -61,28 +61,41 @@ def load_utility_data():
 def process_tradeoff(df):
     if df is None or df.empty: return
 
-    # For each Dataset, Model, and Method, find the row with the best score
-    # Classification -> maximum F1, Regression -> maximum R2
-    idx = df.groupby(['Dataset', 'Model', 'Method'])['Score'].idxmax()
-    best_results = df.loc[idx]
-
-    for (ds, task), ds_df in best_results.groupby(['Dataset', 'Task_Type']):
-        # Create the folder: analysis/privacy_tradeoff/classification/adult/
+    for (ds, task), ds_df in df.groupby(['Dataset', 'Task_Type']):
         folder_path = os.path.join(BASE_TRADE_DIR, task, ds)
         os.makedirs(folder_path, exist_ok=True)
 
-        # Sort the DataFrame by Score in descending order to see the best method at the top
-        ds_df = ds_df.sort_values(by='Score', ascending=False)
+        if task == 'classification':
+            # Best F1 per (Model, Method)
+            f1_df = ds_df[ds_df['Metric_Type'] == 'F1']
+            auc_df = ds_df[ds_df['Metric_Type'] == 'AUC']
 
-        # Rename the Score column based on the task for clarity
-        metric_label = 'Best_F1_Score' if task == 'classification' else 'Best_R2_Score'
-        ds_df = ds_df.rename(columns={'Score': metric_label})
+            best_f1 = f1_df.loc[f1_df.groupby(['Model', 'Method'])['Score'].idxmax()] \
+                           .rename(columns={'Score': 'Best_F1_Score'}) \
+                           [['Method', 'Model', 'Best_F1_Score', 'Epsilon', 'Data_Norm']]
+
+            best_auc = auc_df.loc[auc_df.groupby(['Model', 'Method'])['Score'].idxmax()] \
+                             .rename(columns={'Score': 'Best_AUC_Score'}) \
+                             [['Method', 'Model', 'Best_AUC_Score', 'Epsilon', 'Data_Norm']]
+
+            # Merge F1 and AUC on Method + Model
+            result = best_f1.merge(best_auc, on=['Method', 'Model'], suffixes=('_f1', '_auc'))
+            result = result.sort_values('Best_F1_Score', ascending=False)
+
+            final_cols = ['Method', 'Model', 'Best_F1_Score', 'Epsilon_f1', 'Data_Norm_f1',
+                          'Best_AUC_Score', 'Epsilon_auc', 'Data_Norm_auc']
+
+        else:
+            # Regression: best R2 per (Model, Method)
+            r2_df = ds_df[ds_df['Metric_Type'] == 'R2']
+            best_r2 = r2_df.loc[r2_df.groupby(['Model', 'Method'])['Score'].idxmax()] \
+                           .rename(columns={'Score': 'Best_R2_Score'}) \
+                           [['Method', 'Model', 'Best_R2_Score', 'Epsilon', 'Data_Norm']]
+            result = best_r2.sort_values('Best_R2_Score', ascending=False)
+            final_cols = ['Method', 'Model', 'Best_R2_Score', 'Epsilon', 'Data_Norm']
 
         output_file = os.path.join(folder_path, 'tabel_utility.csv')
-        
-        # Select the final columns
-        final_cols = ['Method', 'Model', metric_label, 'Epsilon', 'Data_Norm']
-        ds_df[final_cols].to_csv(output_file, index=False)
+        result[final_cols].to_csv(output_file, index=False)
         print(f"Saved: {task}/{ds}/tabel_utility.csv")
 
 if __name__ == "__main__":

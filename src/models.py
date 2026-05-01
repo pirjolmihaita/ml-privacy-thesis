@@ -33,6 +33,7 @@ except ImportError:
     paillier = None
 
 from .utils import get_logger
+from .mi_attack import run_mi_attack
 
 logger = get_logger(__name__)
 
@@ -49,38 +50,38 @@ class ModelManager:
 
     def get_baseline_model(self, model_type):
         if model_type == 'lr':
-            return LogisticRegression(solver='lbfgs', max_iter=1000)
+            return LogisticRegression(solver='lbfgs', max_iter=1000, class_weight='balanced')
         elif model_type == 'lin_reg':
             return LinearRegression()
         elif model_type == 'nb':
-            return GaussianNB()
+            return GaussianNB(priors=[0.5, 0.5])
         elif model_type == 'dt':
-            return DecisionTreeClassifier(max_depth=10, random_state=42)
+            return DecisionTreeClassifier(max_depth=10, random_state=42, class_weight='balanced')
         elif model_type == 'dt_reg':
             return DecisionTreeRegressor(max_depth=10, random_state=42)
         elif model_type == 'rf':
-            return RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42)
+            return RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42, class_weight='balanced')
         elif model_type == 'rf_reg':
             return RandomForestRegressor(n_estimators=50, max_depth=10, random_state=42)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
-    def get_dp_model(self, model_type, epsilon, data_norm, n_features=None, classes=None, bounds=None):
+    def get_dp_model(self, model_type, epsilon, data_norm, n_features=None, classes=None, bounds=None, bounds_y=None):
         if bounds is None:
-            # Fallback if not provided, though typically we want to pass them
-            # For data_norm, we construct a generic bound tuple
             bounds = (-data_norm, data_norm)
+        if bounds_y is None:
+            bounds_y = bounds
 
         if model_type == 'lr':
             return DPLR(epsilon=epsilon, data_norm=data_norm, max_iter=1000)
         elif model_type == 'lin_reg':
-             # DPLinearReg requires bounds_X and bounds_y. 
-             # We assume 'bounds' is for X. 
-             # We need a heuristic for Y if not passed, but we'll use the same scalar for simplicity or data_norm.
-             # Ideally we should pass specific Y bounds, but for this generic fix we assume standardized Y roughly.
-            return DPLinearReg(epsilon=epsilon, bounds_X=bounds, bounds_y=bounds)
+            return DPLinearReg(epsilon=epsilon, bounds_X=bounds, bounds_y=bounds_y)
         elif model_type == 'nb':
-            return DPGNB(epsilon=epsilon, bounds=bounds)
+            # Bounds fixate la [-3, 3] — dupa StandardScaler features sunt in acest range.
+            # Folosirea data_norm (ex. 100) ca bounds supraestimeaza sensitivitatea
+            # si produce zgomot excesiv care face modelul mai vulnerabil la MIA.
+            nb_bounds = (-3.0, 3.0)
+            return DPGNB(epsilon=epsilon, bounds=nb_bounds)
         elif model_type == 'dt':
             return DPDT(epsilon=epsilon, max_depth=10, bounds=bounds, classes=classes)
         elif model_type == 'rf':
@@ -129,13 +130,13 @@ class ModelManager:
         X_test,
         y_train,
         n_samples=10,
-        fhe_mode="simulate",        # "simulate" (rapid) sau "execute" (FHE real)
-        apply_dp_weights=False,     # <-- NOU: DP pe coeficienți (doar LR/LinReg)
-        dp_epsilon=None,            # <-- NOU: epsilon pentru noise
-        data_norm=None,             # <-- NOU: folosit ca scală (heuristic)
-        max_abs_weight=5.0,         # <-- NOU: clipping pentru stabilitate
-        dp_mechanism="laplace",     # <-- NOU: "laplace" (default)
-        random_state=None           # <-- NOU: reproducibilitate
+        fhe_mode="simulate",
+        apply_dp_weights=False,
+        dp_epsilon=None,
+        data_norm=None,
+        max_abs_weight=5.0,
+        dp_mechanism="laplace",
+        random_state=None
     ):
         """
         Compiles and runs FHE inference using Concrete ML.
@@ -162,9 +163,9 @@ class ModelManager:
         # ---------------------------------------------------------
         # Concrete ML models follow the sklearn API but operate on
         # quantized representations internally.
-        t0 = time.time()
+        t0 = time.perf_counter()
         model.fit(X_train, y_train)
-        train_time = time.time() - t0
+        train_time = time.perf_counter() - t0
 
         # ---------------------------------------------------------
         # 1.5 Optional: DP on coefficients (LR / LinearReg only)
@@ -176,7 +177,7 @@ class ModelManager:
             if dp_epsilon is None or float(dp_epsilon) <= 0:
                 raise ValueError("dp_epsilon trebuie să fie > 0 când apply_dp_weights=True.")
 
-            # RNG (reproducibilitate)
+            # RNG (reproducibilitaty)
             rng = np.random.default_rng(random_state)
 
             # 1.5.1 Extract coefficients
@@ -212,10 +213,10 @@ class ModelManager:
         # Compilation builds the FHE circuit and calibrates
         # quantization parameters using representative data.
         # We use a subset for performance reasons.
-        t0 = time.time()
+        t0 = time.perf_counter()
         calibration_data = X_train[:100] if len(X_train) > 100 else X_train
         model.compile(calibration_data)
-        compile_time = time.time() - t0
+        compile_time = time.perf_counter() - t0
 
         # ---------------------------------------------------------
         # 3. FHE Inference (simulation or real execution)
@@ -226,11 +227,11 @@ class ModelManager:
         # IMPORTANT:
         # - fhe="simulate" → fast, deterministic, recommended for experiments
         # - fhe="execute"  → real FHE (slow, cryptographic execution)
-        t0 = time.time()
+        t0 = time.perf_counter()
         y_preds = model.predict(X_subset, fhe=fhe_mode)
-        fhe_time = time.time() - t0
+        fhe_time = time.perf_counter() - t0
 
-        return y_preds, train_time, compile_time, fhe_time
+        return model, y_preds, train_time, compile_time, fhe_time
 
 
 
@@ -253,7 +254,7 @@ class ModelManager:
         public_key, private_key = paillier.generate_paillier_keypair()
         
         subset_X = X_test[:n_samples]
-        t0 = time.time()
+        t0 = time.perf_counter()
         encrypted_preds = []
         
         # Get coefficients (handle both sklearn and diffprivlib structure)
@@ -285,7 +286,7 @@ class ModelManager:
             
             encrypted_preds.append(enc_res)
             
-        inference_time = time.time() - t0
+        inference_time = time.perf_counter() - t0
         
         decrypted_scores = [private_key.decrypt(enc) for enc in encrypted_preds]
         

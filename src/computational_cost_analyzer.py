@@ -38,9 +38,10 @@ def load_timing_data():
     # Strict regex patterns to identify timing metrics across different methods
     patterns = {
         'Baseline': re.compile(r"^Baseline_(TrainTime|InfTime)$"),
-        'DP-PHE': re.compile(r"^PHE_(TrainTime|InfTime)_Eps([0-9.]+)_Norm([0-9.]+)$"),
-        'DP-FHE': re.compile(r"^Concrete_(TrainTime|InfTime|CompileTime)_Eps([0-9.]+)_Norm([0-9.]+)$"),
-        'DP-FHE-W': re.compile(r"^ConcreteW_(TrainTime|InfTime|CompileTime)_Eps([0-9.]+)_Norm([0-9.]+)$")
+        'DP': re.compile(r"^DP_(TrainTime|InfTime)_Eps([0-9.]+)_Norm([0-9.]+)$"),
+        'DP-PHE': re.compile(r"^DP_PHE_(TrainTime|InfTime)_Eps([0-9.]+)_Norm([0-9.]+)$"),
+        'DP-FHE': re.compile(r"^FHE_(TrainTime|InfTime|CompileTime)_Eps([0-9.]+)_Norm([0-9.]+)$"),
+        'DP-FHE-W': re.compile(r"^FHE_DP_(TrainTime|InfTime|CompileTime)_Eps([0-9.]+)_Norm([0-9.]+)$")
     }
 
     rows = []

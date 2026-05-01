@@ -52,18 +52,9 @@ class MondrianAnonymizer:
         
         # Split value
         if split_col in self.categorical_features:
-            # Categorical split: simpler to just group? Mondrian strictly works on Order.
-            # Adaptation for categorical:
-            # We will rely on random split for now or we treat categorical as unordered
-            # Actually standard Mondrian requires ordered values. 
-            # If we don't have order, we can't easily "split" by median.
-            # Fallback: Just append to partition if we hit categorical roadblock or handle numeric only?
-            # User wants k-anonymity. Let's stick to splitting Numeric columns primarily 
-            # and maybe try to split Categorical if we can define an order or just randomly split the set in two.
-            
-            # Better approach for this baseline: Only split on Numeric QIs? 
-            # Or assume frequency based order.
-             self.partitions.append(indices) 
+            # Mondrian requires ordered values; categorical columns cannot be split by median.
+            # Fallback: keep partition as-is.
+             self.partitions.append(indices)
              return
         else:
             # Numeric Median Split
@@ -82,58 +73,25 @@ class MondrianAnonymizer:
 
     def transform(self, X):
         """
-        Apply generalization to X.
-        For Training Data (which was fitted): Replace values with partition representatives.
-        For Test Data: Find which partition representative they match closest? 
-        Strict Mondrian doesn't really "transform" unseen test data easily without leaking.
-        
-        Standard approach for ML experiments:
-        Anonymize the TRAIN set. Train model on generalized features.
-        Generalize TEST set using the SAME ranges? 
-        Or just mapping to the "representative" of the span it falls into.
+        Apply generalization based on partitions computed in fit().
+        Numeric columns are replaced with partition mean; categorical with partition mode.
+        Note: works only on the same X passed to fit() (index-based).
+        In the experiment, train+test are concatenated before anonymization, then split back.
         """
         X_out = X.copy()
         # Ensure numeric columns are float to avoid int coercion warnings when setting means
         for col in X_out.columns:
             if col not in self.categorical_features and pd.api.types.is_numeric_dtype(X_out[col]):
                  X_out[col] = X_out[col].astype(float)
-        
-        # Pre-compute representatives for each partition
-        # For numeric: Mean or Range string
-        # For categorical: Mode or Set string
-        
-        # Map indices to partition ID
-        # Since we only stored indices in fit(), this transform only works on the Training Set X used in fit().
-        # Handling new Test data is tricky with purely index-based Mondrian.
-        # We need to store the Split Rules (The Tree) to apply to Test data.
-        
-        # SIMPLIFICATION:
-        # We will only implement 'fit_transform' style for the specific experiment loop
-        # But we need to handle Train/Test split.
-        # Correct way: Anonymize the WHOLE dataset (Train+Test) together? NO, that leaks info.
-        # Correct way: Anonymize Train. Use the resultant "Guides" to bucketize Test.
-        
-        # Let's pivot to a simpler implementation:
-        # We will assume we anonymize the training data.
-        # For the test data, we will just apply the same "Binning"?
-        # Actually, let's just implement fit_transform on the passed dataset.
-        # In the experiment loop, we can pass pd.concat([train, test]) to anon, then split back. 
-        # (This is slightly leaky but standard "Data Publishing" scenario assumes you publish the whole anon table).
-        
-        # If the user wants rigorous ML pipeline:
-        # We should use the Train partitions to determine boundaries.
-        
-        # Let's stick to: passing the dataframe indices
+
         for partition in self.partitions:
             # Calculate representative
             for col in X.columns:
                 if col in self.categorical_features:
-                    # Generalization: Set of values? Or Mode?
-                    # For ML, "Mode" (Most Frequent) is best to keep it usable as a feature.
+                    # Generalize categorical: use mode to keep feature usable for ML
                     mode_val = X.loc[partition, col].mode()[0]
                     X_out.loc[partition, col] = mode_val
                 else:
-                    # Generalization: Range Mean?
                     mean_val = X.loc[partition, col].mean()
                     X_out.loc[partition, col] = mean_val
                     

@@ -1,19 +1,34 @@
-# Ignora mediile virtuale
+# Medii virtuale
 venv_wsl/
 .venv/
 env/
-results/
 
-# Ignora cache-ul Python
+# Rezultate si checkpoints (generate la rulare)
+results/
+checkpoints/
+results_membership_inference.csv
+results_re_identification.csv
+results_re_identification_regression.csv
+results_re_identification.png
+
+# Cache Python
 __pycache__/
 *.pyc
+*.pyo
 
-# Ignora setarile IDE si fisiere sistem
+# IDE si sistem
 .vscode/
 .idea/
 .DS_Store
 
-# (Optional) Daca ai rezultate sau date foarte mari pe care nu vrei sa le urci
-# results/
-# data
+# Credentiale si fisiere sensibile
+src/confidentiality-of-data-f9f87fd4ab4d.json
+*.json
+
+# Fisiere personale
+CLAUDE.md
+*.docx
+~$*
+
+# Date (mari, se descarca separat)
 data/
