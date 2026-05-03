@@ -172,17 +172,17 @@ class ModelManager:
         # ---------------------------------------------------------
         if apply_dp_weights:
             if model_type not in ["lr", "lin_reg"]:
-                raise ValueError("apply_dp_weights=True este suportat doar pentru 'lr' / 'lin_reg' (modele cu coeficienți).")
+                raise ValueError("apply_dp_weights=True is only supported for 'lr' / 'lin_reg' models.")
 
             if dp_epsilon is None or float(dp_epsilon) <= 0:
-                raise ValueError("dp_epsilon trebuie să fie > 0 când apply_dp_weights=True.")
+                raise ValueError("dp_epsilon must be > 0 when apply_dp_weights=True.")
 
             # RNG (reproducibilitaty)
             rng = np.random.default_rng(random_state)
 
             # 1.5.1 Extract coefficients
             if not hasattr(model, "coef_") or not hasattr(model, "intercept_"):
-                raise ValueError("Modelul Concrete nu expune coef_ / intercept_. Nu pot aplica DP pe coeficienți.")
+                raise ValueError("Concrete model does not expose coef_ / intercept_. Cannot apply DP to coefficients.")
 
             coef = np.array(model.coef_, dtype=float, copy=True)
             intercept = np.array(model.intercept_, dtype=float, copy=True)
@@ -201,7 +201,7 @@ class ModelManager:
                 coef_noise = rng.laplace(loc=0.0, scale=scale, size=coef.shape)
                 intercept_noise = rng.laplace(loc=0.0, scale=scale, size=intercept.shape)
             else:
-                raise ValueError(f"dp_mechanism necunoscut: {dp_mechanism}. Folosește 'laplace'.")
+                raise ValueError(f"Unknown dp_mechanism: {dp_mechanism}. Use 'laplace'.")
 
             # 1.5.4 Set noisy coefficients back
             model.coef_ = coef + coef_noise

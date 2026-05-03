@@ -99,7 +99,7 @@ def process_tradeoff(df):
         print(f"Saved: {task}/{ds}/tabel_utility.csv")
 
 if __name__ == "__main__":
-    print("Analiză Privacy-Utility Tradeoff în curs...")
+    print("Privacy-Utility Tradeoff analysis running...")
     utility_df = load_utility_data()
     process_tradeoff(utility_df)
-    print("\nFinalizat! Rezultatele sunt în results/analysis/privacy_tradeoff/")
+    print("\nDone! Results saved to results/analysis/privacy_tradeoff/")

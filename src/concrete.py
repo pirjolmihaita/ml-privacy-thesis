@@ -10,7 +10,7 @@ both standard FHE and a hybrid DP-FHE mode where noise is added to weights
 before the model is compiled into a cryptographic circuit.
 """
 
-def run_concrete_fhe_only(mm, m_type, X_train_he, X_test_he, y_train, y_test, task_type, suffix, he_subset_n=None):
+def run_concrete_fhe_only(mm, m_type, X_train_he, X_test_he, y_train, y_test, task_type, suffix, he_subset_n=None, fhe_mode="simulate"):
     """
     Run Concrete ML in FHE-only mode (apply_dp_weights=False).
     Returns:
@@ -25,7 +25,7 @@ def run_concrete_fhe_only(mm, m_type, X_train_he, X_test_he, y_train, y_test, ta
         X_test=X_test_he,
         y_train=y_train,
         n_samples=he_subset_n,
-        fhe_mode="simulate",
+        fhe_mode=fhe_mode,
         apply_dp_weights=False
     )
 
@@ -50,7 +50,7 @@ def run_concrete_fhe_only(mm, m_type, X_train_he, X_test_he, y_train, y_test, ta
             f"FHE_TrainTime{suffix}": conc_train_time,
         }
 
-def run_concrete_dp_weights(mm, m_type, eps, norm, X_train_he, X_test_he, y_train, y_test, task_type, suffix, he_subset_n=None):
+def run_concrete_dp_weights(mm, m_type, eps, norm, X_train_he, X_test_he, y_train, y_test, task_type, suffix, he_subset_n=None, fhe_mode="simulate"):
     """
     ConcreteW: Hybrid mode applying DP-like noise to weights followed by FHE execution.
     Note: Currently supported only for Linear/Logistic Regression models.
@@ -68,7 +68,7 @@ def run_concrete_dp_weights(mm, m_type, eps, norm, X_train_he, X_test_he, y_trai
         X_test=X_test_he,
         y_train=y_train,
         n_samples=he_subset_n,
-        fhe_mode="simulate",
+        fhe_mode=fhe_mode,
         apply_dp_weights=True,
         dp_epsilon=eps,
         data_norm=norm,

@@ -198,6 +198,9 @@ def process_dataset(ds_name):
                             wide_results[row_key]["Time_PHE"] = round(time.time() - t0, 4)
 
                         # 3) Concrete ML (FHE-only) + ConcreteW (DP+weights)
+                        # creditcard, adult, compas are too large for real FHE execution — use simulate
+                        fhe_mode = "simulate" if ds_name in ("creditcard", "adult", "compas") else "execute"
+
                         proc.cpu_percent(interval=None)  # reset
                         t0 = time.time()
                         try:
@@ -205,7 +208,8 @@ def process_dataset(ds_name):
                                 mm=mm, m_type=m_type,
                                 X_train_he=X_train_he, X_test_he=X_test_he,
                                 y_train=y_train, y_test=y_test,
-                                task_type=task_type, suffix=suffix, he_subset_n=None
+                                task_type=task_type, suffix=suffix, he_subset_n=None,
+                                fhe_mode=fhe_mode
                             )
                             wide_results[row_key].update(conc_metrics)
                         except ImportError:
@@ -224,7 +228,8 @@ def process_dataset(ds_name):
                                 mm=mm, m_type=m_type, eps=eps, norm=norm,
                                 X_train_he=X_train_he, X_test_he=X_test_he,
                                 y_train=y_train, y_test=y_test,
-                                task_type=task_type, suffix=suffix, he_subset_n=None
+                                task_type=task_type, suffix=suffix, he_subset_n=None,
+                                fhe_mode=fhe_mode
                             )
                             wide_results[row_key].update(concw_metrics)
                         except ImportError:
