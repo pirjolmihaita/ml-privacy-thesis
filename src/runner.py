@@ -1,5 +1,6 @@
 import os
 import time
+import threading
 import psutil
 import pandas as pd
 import numpy as np
@@ -7,6 +8,8 @@ import concurrent.futures
 from .data_loader import DataLoader
 from .models import ModelManager
 from .utils import get_logger
+
+MAX_COMBINATION_WORKERS = None  # None 
 
 from .common import make_suffix, get_unique_classes, get_bounds, slice_he_features
 from .baseline import run_baseline
@@ -49,6 +52,108 @@ def save_checkpoint(ds_name, results_list):
     except Exception as e:
         logger.error(f"Failed to save checkpoint for {ds_name}: {e}")
 
+def _field(val):
+    # pandas reads 'None' string from CSV back as NaN — normalize it back
+    try:
+        if pd.isna(val):
+            return 'None'
+    except (TypeError, ValueError):
+        pass
+    return val
+
+def _row_to_key(row):
+    return (row.get('Dataset'), row.get('Model'), row.get('Type'),
+            _field(row.get('Epsilon')), _field(row.get('Data_Norm')))
+
+def _process_combination(ds_name, m_type, eps, norm, task_type, mm,
+                          X_train_proc, X_test_proc, X_train_he, X_test_he,
+                          y_train, y_test, n_features, fhe_mode):
+    # fork-ed processes receive read-only arrays — copy to make them writeable
+    X_train_proc = np.array(X_train_proc)
+    X_test_proc  = np.array(X_test_proc)
+    X_train_he   = np.array(X_train_he)
+    X_test_he    = np.array(X_test_he)
+    y_train      = np.array(y_train)
+    y_test       = np.array(y_test)
+    """Ruleaza DP + optional PHE/FHE pentru o combinatie (eps, norm, model)."""
+    suffix     = make_suffix(eps, norm)
+    row_key    = (ds_name, m_type, 'DP', eps, norm)
+    row        = {
+        'Dataset': ds_name, 'Model': m_type, 'Type': 'DP',
+        'Epsilon': eps, 'Data_Norm': norm, 'Task_Type': task_type
+    }
+
+    unique_classes = get_unique_classes(y_train, task_type)
+    dp_bounds      = get_bounds(norm)
+    dp_bounds_y    = (float(y_train.min()), float(y_train.max())) if task_type == 'regression' else dp_bounds
+
+    # 1) DP
+    try:
+        t0 = time.time()
+        _, dp_metrics = run_dp(
+            mm=mm, m_type=m_type, eps=eps, norm=norm,
+            n_features=n_features, classes=unique_classes, bounds=dp_bounds,
+            X_train_proc=X_train_proc, X_test_proc=X_test_proc,
+            y_train=y_train, y_test=y_test,
+            task_type=task_type, suffix=suffix, bounds_y=dp_bounds_y
+        )
+        row['Time_DP'] = round(time.time() - t0, 4)
+        row.update(dp_metrics)
+    except Exception as e:
+        logger.error(f"[{ds_name}] DP failed {m_type} eps={eps} norm={norm}: {e}")
+
+    # 2) PHE
+    try:
+        t0 = time.time()
+        phe_metrics = run_dp_phe(
+            mm=mm, m_type=m_type, eps=eps, norm=norm,
+            X_train_he=X_train_he, X_test_he=X_test_he,
+            y_train=y_train, y_test=y_test,
+            task_type=task_type, suffix=suffix, he_subset_n=None,
+            bounds_y=dp_bounds_y
+        )
+        row.update(phe_metrics)
+        row['Time_PHE'] = round(time.time() - t0, 4)
+    except Exception as e:
+        logger.error(f"[{ds_name}] PHE failed {m_type} eps={eps} norm={norm}: {e}")
+
+    # 3) FHE only
+    try:
+        t0 = time.time()
+        conc_metrics = run_concrete_fhe_only(
+            mm=mm, m_type=m_type,
+            X_train_he=X_train_he, X_test_he=X_test_he,
+            y_train=y_train, y_test=y_test,
+            task_type=task_type, suffix=suffix, he_subset_n=None,
+            fhe_mode=fhe_mode
+        )
+        row.update(conc_metrics)
+        row['Time_FHE'] = round(time.time() - t0, 4)
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.error(f"[{ds_name}] FHE failed {m_type} eps={eps} norm={norm}: {e}")
+
+    # 4) FHE + DP weights
+    try:
+        t0 = time.time()
+        concw_metrics = run_concrete_dp_weights(
+            mm=mm, m_type=m_type, eps=eps, norm=norm,
+            X_train_he=X_train_he, X_test_he=X_test_he,
+            y_train=y_train, y_test=y_test,
+            task_type=task_type, suffix=suffix, he_subset_n=None,
+            fhe_mode=fhe_mode
+        )
+        row.update(concw_metrics)
+        row['Time_ConcreteW'] = round(time.time() - t0, 4)
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.error(f"[{ds_name}] FHE-W failed {m_type} eps={eps} norm={norm}: {e}")
+
+    return row_key, row
+
+
 def process_dataset(ds_name):
     """
     Worker function to process a single dataset.
@@ -56,13 +161,14 @@ def process_dataset(ds_name):
     """
     logger.info(f"Worker started for: {ds_name}")
 
-    # 1. Check for existing checkpoint
+    # Load partial checkpoint into wide_results; don't skip — resume missing combos
+    wide_results = {}
     existing_results = check_checkpoint(ds_name)
-    if existing_results is not None:
-        logger.info(f"Skipping {ds_name} as it was already processed.")
-        return existing_results
+    if existing_results:
+        for row in existing_results:
+            wide_results[_row_to_key(row)] = row
+        logger.info(f"[{ds_name}] Resuming: {len(wide_results)} rows already done")
 
-    # 2. Initialize Resources (DataLoader, ModelManager) inside worker
     proc = psutil.Process(os.getpid())
     proc.cpu_percent(interval=None)  # first call initializes the counter — result discarded
     dl = DataLoader()
@@ -72,10 +178,6 @@ def process_dataset(ds_name):
     data_norms = [1.0, 10, 100]
     ks = [2, 10, 50, 100]
     models = ['lr', 'nb', 'dt', 'rf']
-
-    # Local results storage for this dataset
-    # keyed by tuple signature to allow updates (like baseline + DP metrics merging)
-    wide_results = {}
 
     try:
         try:
@@ -117,11 +219,13 @@ def process_dataset(ds_name):
                 m_type = m_key
 
             row_key = (ds_name, m_type, 'Baseline', 'None', 'None')
-            if row_key not in wide_results:
-                wide_results[row_key] = {
-                    'Dataset': ds_name, 'Model': m_type, 'Type': 'Baseline',
-                    'Epsilon': 'None', 'Data_Norm': 'None', 'Task_Type': task_type
-                }
+            if row_key in wide_results:
+                logger.info(f"[{ds_name}] Baseline {m_type} already done, skipping")
+                continue
+            wide_results[row_key] = {
+                'Dataset': ds_name, 'Model': m_type, 'Type': 'Baseline',
+                'Epsilon': 'None', 'Data_Norm': 'None', 'Task_Type': task_type
+            }
 
             logger.info(f"[{ds_name}] Baseline: {m_type}")
             try:
@@ -137,112 +241,43 @@ def process_dataset(ds_name):
             except Exception as e:
                 logger.error(f"[{ds_name}] Failed Baseline {m_type}: {e}")
 
-        # --- DP & HE LOOP ---
+        # --- DP & HE LOOP (parallelized per combination) ---
+        fhe_mode = "simulate" if ds_name in ("creditcard", "adult", "compas") else "execute"
+
+        combos = []
+        skipped = 0
         for eps in epsilons:
             for norm in data_norms:
                 for m_key in models:
                     if task_type == 'regression':
-                        if m_key == 'lr': m_type = 'lin_reg'
-                        else: continue
+                        if m_key != 'lr':
+                            continue
+                        m_type = 'lin_reg'
                     else:
                         m_type = m_key
+                    # skip combos already present in checkpoint
+                    if (ds_name, m_type, 'DP', eps, norm) in wide_results:
+                        skipped += 1
+                        continue
+                    combos.append((ds_name, m_type, eps, norm, task_type, mm,
+                                   X_train_proc, X_test_proc, X_train_he, X_test_he,
+                                   y_train, y_test, n_features, fhe_mode))
 
-                    suffix = make_suffix(eps, norm)
-                    row_key = (ds_name, m_type, 'DP', eps, norm)
-                    if row_key not in wide_results:
-                        wide_results[row_key] = {
-                            'Dataset': ds_name, 'Model': m_type, 'Type': 'DP',
-                            'Epsilon': eps, 'Data_Norm': norm, 'Task_Type': task_type
-                        }
+        logger.info(f"[{ds_name}] Combos to run: {len(combos)}, already done: {skipped}")
 
-                    logger.info(f"[{ds_name}] DP {m_type} (eps={eps}, norm={norm})")
+        checkpoint_lock = threading.Lock()
 
-                    try:
-                        unique_classes = get_unique_classes(y_train, task_type)
-                        dp_bounds = get_bounds(norm)
-                        dp_bounds_y = (float(y_train.min()), float(y_train.max())) if task_type == 'regression' else dp_bounds
-
-                        # 1) DP Train + Predict (full features)
-                        proc.cpu_percent(interval=None)  # reset
-                        t0 = time.time()
-                        clf_dp, dp_metrics = run_dp(
-                            mm=mm, m_type=m_type, eps=eps, norm=norm,
-                            n_features=n_features, classes=unique_classes, bounds=dp_bounds,
-                            X_train_proc=X_train_proc, X_test_proc=X_test_proc,
-                            y_train=y_train, y_test=y_test,
-                            task_type=task_type, suffix=suffix, bounds_y=dp_bounds_y
-                        )
-                        wide_results[row_key]["CPU_DP"]  = proc.cpu_percent(interval=None)
-                        wide_results[row_key]["RAM_DP"]  = proc.memory_info().rss / (1024 ** 2)
-                        wide_results[row_key]["Time_DP"] = round(time.time() - t0, 4)
-                        wide_results[row_key].update(dp_metrics)
-
-                        # 2) PHE (DP + PHE) on feature subset
-                        logger.info(f"[{ds_name}] Running HE Inference (PHE)...")
-                        proc.cpu_percent(interval=None)  # reset
-                        t0 = time.time()
-                        try:
-                            phe_metrics = run_dp_phe(
-                                mm=mm, m_type=m_type, eps=eps, norm=norm,
-                                X_train_he=X_train_he, X_test_he=X_test_he,
-                                y_train=y_train, y_test=y_test,
-                                task_type=task_type, suffix=suffix, he_subset_n=None,
-                                bounds_y=dp_bounds_y
-                            )
-                            wide_results[row_key].update(phe_metrics)
-                        except Exception as e:
-                            logger.error(f"[{ds_name}] PHE Failed: {e}")
-                        finally:
-                            wide_results[row_key]["CPU_PHE"]  = proc.cpu_percent(interval=None)
-                            wide_results[row_key]["RAM_PHE"]  = proc.memory_info().rss / (1024 ** 2)
-                            wide_results[row_key]["Time_PHE"] = round(time.time() - t0, 4)
-
-                        # 3) Concrete ML (FHE-only) + ConcreteW (DP+weights)
-                        # creditcard, adult, compas are too large for real FHE execution — use simulate
-                        fhe_mode = "simulate" if ds_name in ("creditcard", "adult", "compas") else "execute"
-
-                        proc.cpu_percent(interval=None)  # reset
-                        t0 = time.time()
-                        try:
-                            conc_metrics = run_concrete_fhe_only(
-                                mm=mm, m_type=m_type,
-                                X_train_he=X_train_he, X_test_he=X_test_he,
-                                y_train=y_train, y_test=y_test,
-                                task_type=task_type, suffix=suffix, he_subset_n=None,
-                                fhe_mode=fhe_mode
-                            )
-                            wide_results[row_key].update(conc_metrics)
-                        except ImportError:
-                            pass
-                        except Exception as e:
-                            logger.error(f"[{ds_name}] Concrete FHE-only Failed {m_type}: {e}")
-                        finally:
-                            wide_results[row_key]["CPU_FHE"]  = proc.cpu_percent(interval=None)
-                            wide_results[row_key]["RAM_FHE"]  = proc.memory_info().rss / (1024 ** 2)
-                            wide_results[row_key]["Time_FHE"] = round(time.time() - t0, 4)
-
-                        proc.cpu_percent(interval=None)  # reset
-                        t0 = time.time()
-                        try:
-                            concw_metrics = run_concrete_dp_weights(
-                                mm=mm, m_type=m_type, eps=eps, norm=norm,
-                                X_train_he=X_train_he, X_test_he=X_test_he,
-                                y_train=y_train, y_test=y_test,
-                                task_type=task_type, suffix=suffix, he_subset_n=None,
-                                fhe_mode=fhe_mode
-                            )
-                            wide_results[row_key].update(concw_metrics)
-                        except ImportError:
-                            pass
-                        except Exception as e:
-                            logger.error(f"[{ds_name}] Concrete DP+FHE (Weights) Failed {m_type}: {e}")
-                        finally:
-                            wide_results[row_key]["CPU_ConcreteW"]  = proc.cpu_percent(interval=None)
-                            wide_results[row_key]["RAM_ConcreteW"]  = proc.memory_info().rss / (1024 ** 2)
-                            wide_results[row_key]["Time_ConcreteW"] = round(time.time() - t0, 4)
-
-                    except Exception as e:
-                        logger.error(f"[{ds_name}] DP Failed {m_type}: {e}")
+        with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as ex:
+            futures = {ex.submit(_process_combination, *c): c[:4] for c in combos}
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    row_key, row_data = future.result()
+                    wide_results[row_key] = row_data
+                    with checkpoint_lock:
+                        save_checkpoint(ds_name, list(wide_results.values()))
+                    logger.info(f"[{ds_name}] Combo done: {row_key}")
+                except Exception as e:
+                    logger.error(f"[{ds_name}] Combo failed: {e}")
         # --- K-ANONYMITY BLOCK ---
         try:
             run_k_anonymity_block(
@@ -271,14 +306,13 @@ def process_dataset(ds_name):
         return []
 
 def run_experiments():
-    # List of datasets to process
-    datasets = ['adult', 'data', 'cervical', 'compas', 'creditcard', 'heart', 'insurance', 'communities']
-    
+    # only adult and creditcard;
+    datasets = ['adult', 'creditcard']
+
     logger.info(f"Starting experiments for {len(datasets)} datasets with Multiprocessing...")
 
     all_results = []
-    
-    # Parallelize dataset processing; resources are initialized inside each worker
+
     with concurrent.futures.ProcessPoolExecutor() as executor:
         future_to_ds = {executor.submit(process_dataset, ds): ds for ds in datasets}
         
